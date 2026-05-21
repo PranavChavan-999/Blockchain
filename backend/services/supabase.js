@@ -1,36 +1,18 @@
-const { createClient } = require("@supabase/supabase-js");
-
-let client;
-
-function getSupabaseKey() {
-  return process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
-}
-
-function getSupabase() {
-  const url = process.env.SUPABASE_URL;
-  const key = getSupabaseKey();
-
-  if (!url || !key) {
-    return null;
-  }
-
-  if (!client) {
-    client = createClient(url, key, {
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
-  }
-
-  return client;
-}
+const { getSupabase } = require("../lib/supabase");
 
 /**
- * Verifies Supabase env vars and runs a read against SUPABASE_TEST_TABLE
- * (default: health_checks). Returns a structured result for API/CLI use.
+ * Verifies Supabase env vars and runs a read against SUPABASE_TEST_TABLE.
  */
 async function testDbConnection() {
   const missing = [];
   if (!process.env.SUPABASE_URL) missing.push("SUPABASE_URL");
-  if (!getSupabaseKey()) missing.push("SUPABASE_SERVICE_ROLE_KEY or SUPABASE_ANON_KEY");
+  if (
+    !process.env.SUPABASE_SERVICE_KEY &&
+    !process.env.SUPABASE_SERVICE_ROLE_KEY &&
+    !process.env.SUPABASE_ANON_KEY
+  ) {
+    missing.push("SUPABASE_SERVICE_KEY or SUPABASE_SERVICE_ROLE_KEY");
+  }
 
   if (missing.length > 0) {
     return {
@@ -61,7 +43,7 @@ async function testDbConnection() {
       error: error.message,
       code: error.code,
       hint: isMissingTable
-        ? `Table "${table}" not found. Run backend/supabase/schema.sql in the Supabase SQL editor, or set SUPABASE_TEST_TABLE to an existing table.`
+        ? `Table "${table}" not found. Run backend/supabase/schema.sql in the Supabase SQL editor.`
         : "Check URL, API key, and RLS policies for your key type.",
     };
   }

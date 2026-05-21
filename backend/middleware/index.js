@@ -1,4 +1,7 @@
-const authenticateJWT = require("./authenticateJWT");
+const authMiddleware = require("./authMiddleware");
 const walletAccessGuard = require("./walletAccessGuard");
 
-module.exports = { authenticateJWT, walletAccessGuard };
+/** @deprecated use authMiddleware */
+const authenticateJWT = authMiddleware;
+
+module.exports = { authMiddleware, authenticateJWT, walletAccessGuard };

@@ -1,4 +1,4 @@
-const { getSupabase } = require("./supabase");
+const { getSupabase } = require("../lib/supabase");
 const { normalizeAddress } = require("../utils/wallet");
 
 const USERS_TABLE = process.env.SUPABASE_USERS_TABLE || "users";

@@ -1,12 +1,12 @@
 const NONCE_TTL_MS = 5 * 60 * 1000;
 
-/** @type {Map<string, { message: string, expiresAt: number }>} */
+/** @type {Map<string, { nonce: string, expiresAt: number }>} */
 const store = new Map();
 
-function setNonce(walletAddress, message) {
+function setNonce(walletAddress, nonce) {
   const key = walletAddress.toLowerCase();
   store.set(key, {
-    message,
+    nonce,
     expiresAt: Date.now() + NONCE_TTL_MS,
   });
 }
@@ -19,7 +19,7 @@ function getNonce(walletAddress) {
     store.delete(key);
     return null;
   }
-  return entry.message;
+  return entry.nonce;
 }
 
 function deleteNonce(walletAddress) {

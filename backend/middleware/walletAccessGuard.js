@@ -3,6 +3,7 @@ const { normalizeAddress, isValidEthereumAddress } = require("../utils/wallet");
 function collectWalletAddresses(req) {
   const addresses = [];
 
+  if (req.body?.address) addresses.push(req.body.address);
   if (req.body?.walletAddress) addresses.push(req.body.walletAddress);
   if (req.query?.walletAddress) addresses.push(req.query.walletAddress);
   if (req.params?.walletAddress) addresses.push(req.params.walletAddress);
@@ -12,7 +13,8 @@ function collectWalletAddresses(req) {
 }
 
 function walletAccessGuard(req, res, next) {
-  if (!req.auth?.walletAddress) {
+  const authAddress = req.user?.address || req.auth?.walletAddress;
+  if (!authAddress) {
     return res.status(401).json({ error: "Not authenticated" });
   }
 
@@ -23,7 +25,7 @@ function walletAccessGuard(req, res, next) {
 
   let authWallet;
   try {
-    authWallet = normalizeAddress(req.auth.walletAddress);
+    authWallet = normalizeAddress(authAddress);
   } catch {
     return res.status(401).json({ error: "Invalid authenticated wallet" });
   }

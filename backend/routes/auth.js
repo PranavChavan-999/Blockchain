@@ -1,58 +1,175 @@
+const crypto = require("crypto");
 const express = require("express");
-const { createNonceForWallet, verifyAndAuthenticate } = require("../services/auth");
+const jwt = require("jsonwebtoken");
+const { SiweMessage } = require("siwe");
+const { getSupabase } = require("../lib/supabase");
+const { setNonce, getNonce, deleteNonce } = require("../stores/nonceStore");
+const { normalizeAddress, isValidEthereumAddress } = require("../utils/wallet");
+const authMiddleware = require("../middleware/authMiddleware");
 
 const router = express.Router();
 
-router.post("/nonce", (req, res) => {
-  const { walletAddress } = req.body ?? {};
+const JWT_EXPIRES_IN = "7d";
+const BASE_SEPOLIA_CHAIN_ID = 84532;
+const USERS_TABLE = process.env.SUPABASE_USERS_TABLE || "users";
 
-  if (!walletAddress) {
-    return res.status(400).json({ error: "walletAddress is required" });
+function issueToken(address, userId) {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    const err = new Error("JWT_SECRET is not configured");
+    err.code = "JWT_NOT_CONFIGURED";
+    throw err;
+  }
+
+  return jwt.sign({ address: normalizeAddress(address), userId }, secret, {
+    expiresIn: JWT_EXPIRES_IN,
+  });
+}
+
+async function upsertUser(address) {
+  const supabase = getSupabase();
+  if (!supabase) {
+    const err = new Error("Supabase is not configured");
+    err.code = "DB_NOT_CONFIGURED";
+    throw err;
+  }
+
+  const wallet_address = normalizeAddress(address);
+  const now = new Date().toISOString();
+
+  const { data, error } = await supabase
+    .from(USERS_TABLE)
+    .upsert(
+      {
+        wallet_address,
+        auth_type: "wallet",
+        last_active: now,
+      },
+      { onConflict: "wallet_address" }
+    )
+    .select("id, wallet_address, created_at, last_active")
+    .single();
+
+  if (error) {
+    const err = new Error(error.message);
+    err.code = "DB_UPSERT_FAILED";
+    err.details = error;
+    throw err;
+  }
+
+  return {
+    id: data.id,
+    wallet_address: data.wallet_address,
+    created_at: data.created_at,
+    last_login: data.last_active,
+  };
+}
+
+/**
+ * GET /api/auth/nonce?address=0x...
+ */
+router.get("/nonce", (req, res) => {
+  const address = req.query.address;
+
+  if (!address) {
+    return res.status(400).json({ error: "address query parameter is required" });
+  }
+
+  if (!isValidEthereumAddress(address)) {
+    return res.status(400).json({ error: "Invalid Ethereum wallet address" });
   }
 
   try {
-    const message = createNonceForWallet(walletAddress);
-    return res.json({ message });
+    const normalized = normalizeAddress(address);
+    const nonce = crypto.randomBytes(16).toString("hex");
+    setNonce(normalized, nonce);
+    return res.json({ nonce });
   } catch (err) {
-    if (err.code === "INVALID_ADDRESS") {
-      return res.status(400).json({ error: err.message });
-    }
-    console.error("[POST /api/auth/nonce]", err);
+    console.error("[GET /api/auth/nonce]", err);
     return res.status(500).json({ error: "Failed to create nonce" });
   }
 });
 
+/**
+ * POST /api/auth/verify
+ * Body: { address, message, signature }
+ */
 router.post("/verify", async (req, res) => {
-  const { walletAddress, signature } = req.body ?? {};
+  const { address, message, signature } = req.body ?? {};
 
-  if (!walletAddress || !signature) {
-    return res.status(400).json({ error: "walletAddress and signature are required" });
+  if (!address || !message || !signature) {
+    return res.status(400).json({
+      error: "address, message, and signature are required",
+    });
+  }
+
+  if (!isValidEthereumAddress(address)) {
+    return res.status(400).json({ error: "Invalid Ethereum wallet address" });
+  }
+
+  let normalized;
+  try {
+    normalized = normalizeAddress(address);
+  } catch {
+    return res.status(400).json({ error: "Invalid Ethereum wallet address" });
+  }
+
+  const storedNonce = getNonce(normalized);
+  if (!storedNonce) {
+    return res.status(401).json({ error: "Nonce expired or not found" });
   }
 
   try {
-    const { token, user } = await verifyAndAuthenticate(walletAddress, signature);
-    return res.json({ token, user });
+    const siweMessage = new SiweMessage(message);
+    const { success, error, data } = await siweMessage.verify({
+      signature,
+      nonce: storedNonce,
+    });
+
+    if (!success || error) {
+      return res.status(401).json({
+        error: error?.type || "Invalid SIWE signature",
+        details: error?.expected,
+      });
+    }
+
+    if (normalizeAddress(data.address) !== normalized) {
+      return res.status(401).json({ error: "Signature address mismatch" });
+    }
+
+    if (Number(data.chainId) !== BASE_SEPOLIA_CHAIN_ID) {
+      return res.status(401).json({
+        error: `Wrong network. Expected chain ID ${BASE_SEPOLIA_CHAIN_ID} (Base Sepolia)`,
+      });
+    }
+
+    deleteNonce(normalized);
+
+    const user = await upsertUser(normalized);
+    const token = issueToken(normalized, user.id);
+
+    return res.json({
+      token,
+      user: { wallet_address: user.wallet_address },
+    });
   } catch (err) {
-    if (
-      err.code === "INVALID_ADDRESS" ||
-      err.code === "INVALID_SIGNATURE" ||
-      err.code === "SIGNATURE_MISMATCH"
-    ) {
-      return res.status(400).json({ error: err.message });
-    }
-    if (err.code === "NONCE_INVALID") {
-      return res.status(401).json({ error: err.message });
-    }
-    if (err.code === "JWT_NOT_CONFIGURED") {
-      return res.status(500).json({ error: err.message });
-    }
     if (err.code === "DB_NOT_CONFIGURED" || err.code === "DB_UPSERT_FAILED") {
       console.error("[POST /api/auth/verify] database error:", err.details || err);
       return res.status(503).json({ error: "Failed to save user profile" });
     }
+    if (err.code === "JWT_NOT_CONFIGURED") {
+      return res.status(500).json({ error: err.message });
+    }
     console.error("[POST /api/auth/verify]", err);
-    return res.status(500).json({ error: "Authentication failed" });
+    return res.status(401).json({ error: "Invalid signature or message" });
   }
+});
+
+/**
+ * POST /api/auth/logout — stateless JWT; client drops token.
+ */
+router.post("/logout", authMiddleware, (_req, res) => {
+  res.json({ ok: true });
 });
 
 module.exports = router;

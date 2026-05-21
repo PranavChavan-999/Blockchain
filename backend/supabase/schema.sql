@@ -1,6 +1,7 @@
 -- Run in Supabase → SQL Editor
+-- Prefer: backend/supabase/migrations/001_users_siwe.sql (same users table)
 
--- ── Users (wallet auth) ─────────────────────────────────────────────
+-- ── Users (wallet auth — SIWE + JWT) ────────────────────────────────
 create table if not exists public.users (
   id uuid primary key default gen_random_uuid(),
   wallet_address text unique not null,
