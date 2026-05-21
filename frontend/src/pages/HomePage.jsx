@@ -1,9 +1,10 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { ethers } from "ethers";
 import { useAccount, useChainId, useSignMessage, useSwitchChain } from "wagmi";
 import { switchProviderToBaseSepolia } from "../lib/walletReady";
 import { getAuthorizedEthersSigner } from "../lib/walletSigner";
 import { ugfPreauthWithSignMessage } from "../lib/ugfAuth";
+import { waitForNewUgfResult } from "../lib/ugfModalWait";
 import { useUGFModal } from "@tychilabs/react-ugf";
 import { useAuthStore } from "../store/useAuthStore";
 import {
@@ -133,7 +134,10 @@ export default function HomePage() {
   const [slowNetwork,    setSlowNetwork]    = useState(false);
   const badgeRef = useRef(null);
 
-  const { openUGF } = useUGFModal();
+  const { openUGF, result: ugfModalResult } = useUGFModal();
+  const ugfModalResultRef = useRef(ugfModalResult);
+  ugfModalResultRef.current = ugfModalResult;
+  const getUgfModalResult = useCallback(() => ugfModalResultRef.current, []);
 
   // ── Generate floating particles once ─────────────────────────
   useEffect(() => {
@@ -303,15 +307,17 @@ export default function HomePage() {
         return;
       }
 
-      setMsg("Waiting for approval in MetaMask...", "info");
+      setMsg("Complete gas payment in the UGF modal…", "info");
 
+      const ugfResultBefore = getUgfModalResult();
       let result;
       try {
-        result = await openUGF({
+        await openUGF({
           signer,
           tx: { to: CONTRACT_ADDRESS, data, value: BigInt(0) },
           destChainId: "84532",
         });
+        result = await waitForNewUgfResult(getUgfModalResult, ugfResultBefore);
       } catch (ugfErr) {
         if (isSigningRequestNotFoundError(ugfErr)) {
           console.error("[claimBadge] Signing request not found — request may have expired");
@@ -319,18 +325,22 @@ export default function HomePage() {
           setLoading(false);
           return;
         }
-        throw ugfErr;
-      }
-
-      console.log("[claimBadge] openUGF result:", result);
-      console.log("[claimBadge] result keys:", result ? Object.keys(result) : "null/undefined");
-
-      if (!result) {
-        console.error("[claimBadge] openUGF returned undefined — aborting");
-        setMsg("Badge claim failed: signing request was not created. Please try again.", "error");
+        const msg = ugfErr?.message || String(ugfErr);
+        if (msg.includes("UGF payment was not completed")) {
+          setMsg(msg, "error");
+          setLoading(false);
+          return;
+        }
+        console.error("[claimBadge] UGF flow failed:", ugfErr);
+        setMsg(
+          "Gas payment failed. Check MetaMask is on Base Sepolia, approve UGF prompts, or use \"Use normal transaction\" in the modal.",
+          "error"
+        );
         setLoading(false);
         return;
       }
+
+      console.log("[claimBadge] UGF result:", result);
 
       setMsg("Verifying on Base Sepolia...", "info");
 

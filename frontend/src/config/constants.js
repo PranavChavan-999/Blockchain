@@ -1,4 +1,6 @@
-export const CONTRACT_ADDRESS = "0xf56AaaeDA493114f3461Dc091149643BA1cef802";
+export const CONTRACT_ADDRESS =
+  import.meta.env.VITE_CONTRACT_ADDRESS ||
+  "0xf56AaaeDA493114f3461Dc091149643BA1cef802";
 
 export const CONTRACT_ABI = [
   "function claimBadge(string memory skillName) public",
