@@ -313,7 +313,6 @@ export default function HomePage() {
 
       setMsg("Complete gas payment in the UGF modal…", "info");
 
-      const ugfResultBefore = getUgfModalResult();
       let result;
       try {
         await openUGF({
@@ -321,7 +320,11 @@ export default function HomePage() {
           tx: { to: CONTRACT_ADDRESS, data, value: BigInt(0) },
           destChainId: "84532",
         });
-        result = await waitForNewUgfResult(getUgfModalResult, ugfResultBefore);
+        // Snapshot after openUGF clears prior result (patched react-ugf); hash compare handles legacy state.
+        result = await waitForNewUgfResult(
+          getUgfModalResult,
+          getUgfModalResult()
+        );
       } catch (ugfErr) {
         if (isSigningRequestNotFoundError(ugfErr)) {
           console.error("[claimBadge] Signing request not found — request may have expired");

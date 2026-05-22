@@ -1,10 +1,15 @@
 import { applyAaveProviderPatch } from "./lib/aaveProviderPatch";
 import { installAuthFetchGuard } from "./lib/authFetchGuard";
 import { installRpcFetchProxy } from "./lib/rpcProxy";
+import {
+  installUgfGatewayFetchGuard,
+  isUgfGatewayFetchError,
+} from "./lib/ugfGatewayFetch";
 
 applyAaveProviderPatch();
 installRpcFetchProxy();
 installAuthFetchGuard();
+installUgfGatewayFetchGuard();
 
 window.addEventListener("unhandledrejection", (event) => {
   const msg = event.reason?.message || String(event.reason || "");
@@ -14,6 +19,11 @@ window.addEventListener("unhandledrejection", (event) => {
     event.reason?.name === "EthereumProviderConnectionTimeoutError"
   ) {
     console.warn("[Aave Account]", event.reason);
+    event.preventDefault();
+    return;
+  }
+  if (isUgfGatewayFetchError(event.reason)) {
+    console.warn("[UGF] gateway fetch failed (registry may use fallback)", event.reason);
     event.preventDefault();
   }
 });

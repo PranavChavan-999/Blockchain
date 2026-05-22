@@ -1,5 +1,3 @@
-import { ConnectKitButton } from "connectkit";
-
 const NAV_LINKS = [
   { label: "Claim", href: "#claim" },
   { label: "How it works", href: "#benefits" },
@@ -28,9 +26,6 @@ export default function Navbar() {
           GitHub ↗
         </a>
       </nav>
-      <div className="site-nav-cta">
-        <ConnectKitButton />
-      </div>
     </header>
   );
 }

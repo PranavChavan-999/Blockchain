@@ -63,6 +63,68 @@ const BALANCE_CORRUPTED = `    const fetchBalance = async () => {
     await fetchBalance();
     balanceIntervalRef.current = setInterval(fetchBalance, 3e4);`;
 
+const MODAL_OPTIONS_ORIGINAL = `    getAllPaymentOptions(mode).then((opts) => {
+      setOptions(opts);
+      if (opts.length > 0 && opts[0].chains.length > 0) {
+        handleSelect(
+          opts[0].token,
+          opts[0].chains[0].chainId,
+          opts[0].chains[0].tokenAddress
+        );
+      }
+    }).finally(() => setOptionsLoading(false));`;
+
+const MODAL_OPTIONS_PATCHED = `    getAllPaymentOptions(mode).then((opts) => {
+      setOptions(opts);
+      if (opts.length > 0 && opts[0].chains.length > 0) {
+        handleSelect(
+          opts[0].token,
+          opts[0].chains[0].chainId,
+          opts[0].chains[0].tokenAddress
+        );
+      }
+    }).catch((e) => {
+      console.warn("[UGF] payment options failed", e);
+      setOptions([]);
+    }).finally(() => setOptionsLoading(false));`;
+
+const USE_UGF_RETURN_ORIGINAL = `  return { run, loading, step, error };
+}`;
+
+const USE_UGF_RETURN_PATCHED = `  function resetFlow() {
+    setStep("idle");
+    setError(null);
+    setLoading(false);
+  }
+  return { run, loading, step, error, resetFlow };
+}`;
+
+const PROVIDER_HOOK_ORIGINAL = `  const { run, step, loading, error } = useUGF(mode);`;
+
+const PROVIDER_HOOK_PATCHED = `  const { run, step, loading, error, resetFlow } = useUGF(mode);`;
+
+const OPEN_UGF_SET_OPEN_ORIGINAL = `    setParams(p);
+    setOpen(true);
+  }`;
+
+const OPEN_UGF_SET_OPEN_PATCHED = `    setResult(null);
+    resetFlow();
+    setParams(p);
+    setOpen(true);
+  }`;
+
+const SUCCESS_CLOSE_ORIGINAL = `  useEffect(() => {
+    if (step !== "success") return;
+    const timer = setTimeout(() => onClose(), 2e3);
+    return () => clearTimeout(timer);
+  }, [step]);`;
+
+const SUCCESS_CLOSE_PATCHED = `  useEffect(() => {
+    if (!open || step !== "success") return;
+    const timer = setTimeout(() => onClose(), 2e3);
+    return () => clearTimeout(timer);
+  }, [open, step]);`;
+
 let src = fs.readFileSync(target, "utf8");
 let changed = false;
 
@@ -71,8 +133,19 @@ const balancePatched =
   src.includes("balanceFetchInFlight = true;") &&
   src.includes("setInterval(fetchBalance, 3e4)") &&
   !src.includes(BALANCE_CORRUPTED);
+const modalRegistryPatched = src.includes("[UGF] payment options failed");
+const sessionResetPatched =
+  src.includes("function resetFlow()") &&
+  src.includes("setResult(null);\n    resetFlow();");
+const successClosePatched = src.includes('if (!open || step !== "success")');
 
-if (authPatched && balancePatched) {
+if (
+  authPatched &&
+  balancePatched &&
+  modalRegistryPatched &&
+  sessionResetPatched &&
+  successClosePatched
+) {
   console.log("[patch-react-ugf] Already patched");
   process.exit(0);
 }
@@ -161,6 +234,31 @@ var STORAGE_PREFIX = "ugf_auth";`
       changed = true;
     }
   }
+}
+
+if (!modalRegistryPatched && src.includes(MODAL_OPTIONS_ORIGINAL)) {
+  src = src.replace(MODAL_OPTIONS_ORIGINAL, MODAL_OPTIONS_PATCHED);
+  changed = true;
+}
+
+if (!sessionResetPatched) {
+  if (src.includes(USE_UGF_RETURN_ORIGINAL)) {
+    src = src.replace(USE_UGF_RETURN_ORIGINAL, USE_UGF_RETURN_PATCHED);
+    changed = true;
+  }
+  if (src.includes(PROVIDER_HOOK_ORIGINAL)) {
+    src = src.replace(PROVIDER_HOOK_ORIGINAL, PROVIDER_HOOK_PATCHED);
+    changed = true;
+  }
+  if (src.includes(OPEN_UGF_SET_OPEN_ORIGINAL)) {
+    src = src.replace(OPEN_UGF_SET_OPEN_ORIGINAL, OPEN_UGF_SET_OPEN_PATCHED);
+    changed = true;
+  }
+}
+
+if (!successClosePatched && src.includes(SUCCESS_CLOSE_ORIGINAL)) {
+  src = src.replace(SUCCESS_CLOSE_ORIGINAL, SUCCESS_CLOSE_PATCHED);
+  changed = true;
 }
 
 if (!changed) {
