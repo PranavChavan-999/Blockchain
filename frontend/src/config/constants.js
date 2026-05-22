@@ -15,11 +15,10 @@ export const CONTRACT_ABI = [
 export const BASE_SEPOLIA_CHAIN_ID_HEX = "0x14A34";
 export const BASE_SEPOLIA_CHAIN_ID_DEC = 84532;
 
+import { getBaseSepoliaRpcUrl } from "../lib/rpcConfig";
+
 /** Fixed Base Sepolia RPC — contract reads must not use MetaMask (network can switch mid-flow). */
-export const BASE_SEPOLIA_RPC =
-  import.meta.env.VITE_BASE_SEPOLIA_RPC_URL ||
-  import.meta.env.VITE_BASE_SEPOLIA_RPC ||
-  (import.meta.env.DEV ? "/rpc/base-sepolia" : "https://sepolia.base.org");
+export const BASE_SEPOLIA_RPC = getBaseSepoliaRpcUrl();
 
 export const SKILLS = [
   { id: "react",     label: "React Developer",     icon: "⚛️",  color: "#61dafb", glow: "rgba(97,218,251,0.28)",  desc: "Modern UI engineering",   rarity: "Rare",      rarityColor: "#61dafb" },

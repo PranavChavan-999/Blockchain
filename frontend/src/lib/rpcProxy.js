@@ -1,26 +1,12 @@
 /**
- * Rewrites browser RPC calls to same-origin proxies (Vite dev server).
+ * Rewrites browser RPC calls to same-origin proxies (Vite dev / Vercel rewrites).
  * viem's default mainnet RPC (eth.merkle.io) blocks CORS and rate-limits heavily.
  */
 
-const MAINNET_PROXY =
-  import.meta.env.VITE_MAINNET_RPC_PROXY ||
-  (import.meta.env.DEV ? "/rpc/mainnet" : null);
-
-const BASE_SEPOLIA_PROXY =
-  import.meta.env.VITE_BASE_SEPOLIA_RPC_PROXY ||
-  (import.meta.env.DEV ? "/rpc/base-sepolia" : null);
-
-/** RPC hosts we replace in dev (merkle + viem default). */
-const RPC_REWRITES = [
-  { from: "https://eth.merkle.io", to: MAINNET_PROXY },
-  { from: "https://cloudflare-eth.com", to: MAINNET_PROXY },
-  { from: "https://ethereum-rpc.publicnode.com", to: MAINNET_PROXY },
-  { from: "https://sepolia.base.org", to: BASE_SEPOLIA_PROXY },
-].filter((r) => r.to);
+import { RPC_REWRITE_TARGETS } from "./rpcConfig";
 
 function rewriteUrl(url) {
-  for (const { from, to } of RPC_REWRITES) {
+  for (const { from, to } of RPC_REWRITE_TARGETS) {
     if (url === from || url.startsWith(`${from}/`)) {
       const path = url.slice(from.length) || "";
       const base = to.endsWith("/") ? to.slice(0, -1) : to;

@@ -1,0 +1,20 @@
+{
+  "rewrites": [
+    {
+      "source": "/rpc/base-sepolia",
+      "destination": "https://sepolia.base.org/"
+    },
+    {
+      "source": "/rpc/base-sepolia/:path*",
+      "destination": "https://sepolia.base.org/:path*"
+    },
+    {
+      "source": "/rpc/mainnet",
+      "destination": "https://ethereum-rpc.publicnode.com/"
+    },
+    {
+      "source": "/rpc/mainnet/:path*",
+      "destination": "https://ethereum-rpc.publicnode.com/:path*"
+    }
+  ]
+}

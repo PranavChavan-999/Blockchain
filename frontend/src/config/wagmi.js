@@ -2,12 +2,11 @@ import { getDefaultConfig } from "connectkit";
 import { createConfig, http } from "wagmi";
 import { baseSepolia } from "wagmi/chains";
 import { getAaveAccountOptions } from "../lib/aaveAccount";
+import { getBaseSepoliaRpcUrl } from "../lib/rpcConfig";
 
 const walletConnectProjectId = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID;
 
-const baseSepoliaRpc =
-  import.meta.env.VITE_BASE_SEPOLIA_RPC_URL ||
-  (import.meta.env.DEV ? "/rpc/base-sepolia" : "https://sepolia.base.org");
+const baseSepoliaRpc = getBaseSepoliaRpcUrl();
 
 if (!walletConnectProjectId) {
   console.warn(
