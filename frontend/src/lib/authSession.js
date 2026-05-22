@@ -6,7 +6,11 @@ const NONCE_MAX_ATTEMPTS = 3;
 const AUTH_FAIL_COOLDOWN_MS = 60_000;
 
 let authPromise = null;
+let verifyPromise = null;
 let lastAuthFailAt = 0;
+let backendSetupBlockedUntil = 0;
+
+const BACKEND_SETUP_BLOCK_MS = 5 * 60 * 1000;
 
 export function isTokenExpired(token) {
   if (!token) return true;
@@ -20,7 +24,24 @@ export function isTokenExpired(token) {
 }
 
 export function isInAuthCooldown() {
-  return Date.now() - lastAuthFailAt < AUTH_FAIL_COOLDOWN_MS;
+  return (
+    Date.now() - lastAuthFailAt < AUTH_FAIL_COOLDOWN_MS ||
+    Date.now() < backendSetupBlockedUntil
+  );
+}
+
+/** Stops verify retry spam when Supabase users table is missing (503). */
+export function markBackendSetupBlocked() {
+  backendSetupBlockedUntil = Date.now() + BACKEND_SETUP_BLOCK_MS;
+  markAuthFailed();
+}
+
+export function isBackendSetupBlocked() {
+  return Date.now() < backendSetupBlockedUntil;
+}
+
+export function clearBackendSetupBlock() {
+  backendSetupBlockedUntil = 0;
 }
 
 export function markAuthFailed() {
@@ -68,7 +89,26 @@ export async function getNonceWithBackoff(fetchNonce, attempt = 0) {
   }
 }
 
+/**
+ * Ensures only one POST /api/auth/verify runs at a time (avoids nonce double-consume).
+ */
+export function runVerifyOnce(verifyFn) {
+  if (verifyPromise) return verifyPromise;
+
+  verifyPromise = (async () => {
+    try {
+      return await verifyFn();
+    } finally {
+      verifyPromise = null;
+    }
+  })();
+
+  return verifyPromise;
+}
+
 export function cancelAuthInFlight() {
   authPromise = null;
+  verifyPromise = null;
   lastAuthFailAt = 0;
+  backendSetupBlockedUntil = 0;
 }

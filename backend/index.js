@@ -1,6 +1,6 @@
 const express = require("express");
 const cors = require("cors");
-const { PORT, FRONTEND_ORIGIN } = require("./config");
+const { PORT, isAllowedOrigin } = require("./config");
 const { getWalletBadges, getBadgeStats } = require("./services/contract");
 const { testDbConnection } = require("./services/supabase");
 const authRoutes = require("./routes/auth");
@@ -19,7 +19,13 @@ warnIfJwtSecretMissing();
 const app = express();
 app.use(
   cors({
-    origin: FRONTEND_ORIGIN,
+    origin(origin, callback) {
+      if (isAllowedOrigin(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error(`CORS blocked origin: ${origin}`));
+      }
+    },
     credentials: true,
   })
 );

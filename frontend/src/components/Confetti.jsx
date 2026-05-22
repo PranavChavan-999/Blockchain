@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { CONFETTI_COLORS } from "../config/constants";
+const THEME_CONFETTI = ["#0EA5E9", "#5B9EC9", "#22C55E", "#F97316", "#EAB308", "#38bdf8", "#E2F0FF"];
 
 export default function Confetti({ active }) {
   const canvasRef = useRef(null);
@@ -19,7 +19,7 @@ export default function Confetti({ active }) {
       y:     Math.random() * canvas.height * 0.3 - canvas.height * 0.3,
       w:     Math.random() * 9 + 4,
       h:     Math.random() * 4 + 2,
-      color: CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)],
+      color: THEME_CONFETTI[Math.floor(Math.random() * THEME_CONFETTI.length)],
       vx:    (Math.random() - 0.5) * 4.5,
       vy:    Math.random() * 3.5 + 2,
       angle: Math.random() * Math.PI * 2,

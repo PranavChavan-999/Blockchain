@@ -15,12 +15,23 @@ const CONTRACT_ABI = [
 
 const BASE_SEPOLIA_RPC = process.env.BASE_SEPOLIA_RPC_URL || "https://sepolia.base.org";
 const PORT = Number(process.env.PORT) || 5000;
-const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || "http://localhost:5173";
+const FRONTEND_ORIGINS = (process.env.FRONTEND_ORIGIN || "http://localhost:5173")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+
+/** Allow configured origins plus typical local Vite ports when one is already taken. */
+function isAllowedOrigin(origin) {
+  if (!origin) return true;
+  if (FRONTEND_ORIGINS.includes(origin)) return true;
+  return /^https?:\/\/(localhost|127\.0\.0\.1):517[3-9]$/.test(origin);
+}
 
 module.exports = {
   CONTRACT_ADDRESS,
   CONTRACT_ABI,
   BASE_SEPOLIA_RPC,
   PORT,
-  FRONTEND_ORIGIN,
+  FRONTEND_ORIGINS,
+  isAllowedOrigin,
 };

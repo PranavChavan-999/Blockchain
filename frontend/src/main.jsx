@@ -21,6 +21,7 @@ window.addEventListener("unhandledrejection", (event) => {
 import React from "react";
 import ReactDOM from "react-dom/client";
 import "./index.css";
+import "./styles/master-theme.css";
 import App from "./App";
 import { UGFProvider } from "@tychilabs/react-ugf";
 import Web3Provider from "./providers/Web3Provider";

@@ -18,7 +18,10 @@ import {
   isInAuthCooldown,
   isTokenExpired,
   markAuthFailed,
+  markBackendSetupBlocked,
+  isBackendSetupBlocked,
   runWithAuthLock,
+  runVerifyOnce,
 } from "../lib/authSession";
 
 function isConnectedReady(address, isConnected, status) {
@@ -81,12 +84,6 @@ async function login({
       if (!aave.ok) throw new Error(aave.detail);
     }
 
-    setAuthStatusMessage("Requesting sign-in nonce…");
-    const nonce = await getNonceWithBackoff(() => getNonce(address));
-    if (!nonce) return null;
-
-    if (!isConnectedReady(address, isConnected, status)) return null;
-
     setAuthStatusMessage("Confirm wallet access in MetaMask…");
     const accounts = await ensureProviderAccounts(connector);
     if (!accounts?.length) {
@@ -99,6 +96,12 @@ async function login({
 
     if (!isConnectedReady(address, isConnected, status)) return null;
 
+    setAuthStatusMessage("Requesting sign-in nonce…");
+    const nonce = await getNonceWithBackoff(() => getNonce(address));
+    if (!nonce) return null;
+
+    if (!isConnectedReady(address, isConnected, status)) return null;
+
     const siweMessage = new SiweMessage({
       domain: window.location.host,
       address,
@@ -107,6 +110,7 @@ async function login({
       version: "1",
       chainId: BASE_SEPOLIA_CHAIN_ID,
       nonce,
+      issuedAt: new Date().toISOString(),
     });
     const message = siweMessage.prepareMessage();
 
@@ -136,11 +140,13 @@ async function login({
     if (!isConnectedReady(address, isConnected, status)) return null;
 
     setAuthStatusMessage("Verifying signature…");
-    const { token: newToken, user } = await apiPost("/api/auth/verify", {
-      address,
-      message,
-      signature,
-    });
+    const { token: newToken, user } = await runVerifyOnce(() =>
+      apiPost("/api/auth/verify", {
+        address,
+        message,
+        signature,
+      })
+    );
 
     setAuth(address, newToken, user);
     setAuthStatusMessage(null);
@@ -150,6 +156,24 @@ async function login({
     if (err?.status === 429) {
       markAuthFailed();
       setAuthError("Too many sign-in attempts. Wait a minute and try again.");
+      return null;
+    }
+    if (err?.status === 401) {
+      const nonceStale = /nonce/i.test(err?.message || "");
+      if (!nonceStale) {
+        markAuthFailed();
+      }
+      setAuthError(
+        nonceStale
+          ? "Sign-in expired before verification. Click Connect Wallet again and approve the new sign prompt."
+          : formatAuthError(err)
+      );
+      clearAuth();
+      return null;
+    }
+    if (err?.status === 503 || err?.code === "DB_UPSERT_FAILED" || err?.code === "DB_NOT_CONFIGURED") {
+      markBackendSetupBlocked();
+      setAuthError(formatAuthError(err));
       return null;
     }
     throw err;
@@ -230,7 +254,7 @@ export function useWalletAuth() {
       return;
     }
 
-    if (isInAuthCooldown()) {
+    if (isInAuthCooldown() || isBackendSetupBlocked()) {
       return;
     }
 
@@ -242,6 +266,13 @@ export function useWalletAuth() {
       .catch((err) => {
         if (isWalletNotAuthorized(err) || isUserRejectedSign(err)) {
           clearAuth();
+          return;
+        }
+        if (err?.status === 401) {
+          return;
+        }
+        if (err?.status === 503 || err?.code === "DB_UPSERT_FAILED") {
+          setAuthError(formatAuthError(err));
           return;
         }
         console.error("[useWalletAuth]", err);

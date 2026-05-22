@@ -1,9 +1,8 @@
-const crypto = require("crypto");
 const express = require("express");
 const jwt = require("jsonwebtoken");
 const { SiweMessage } = require("siwe");
 const { getSupabase } = require("../lib/supabase");
-const { setNonce, getNonce, deleteNonce } = require("../stores/nonceStore");
+const { getOrCreateNonce, getNonce, consumeNonce } = require("../stores/nonceStore");
 const { normalizeAddress, isValidEthereumAddress } = require("../utils/wallet");
 const authMiddleware = require("../middleware/authMiddleware");
 
@@ -81,8 +80,7 @@ router.get("/nonce", (req, res) => {
 
   try {
     const normalized = normalizeAddress(address);
-    const nonce = crypto.randomBytes(16).toString("hex");
-    setNonce(normalized, nonce);
+    const nonce = getOrCreateNonce(normalized);
     return res.json({ nonce });
   } catch (err) {
     console.error("[GET /api/auth/nonce]", err);
@@ -114,36 +112,59 @@ router.post("/verify", async (req, res) => {
     return res.status(400).json({ error: "Invalid Ethereum wallet address" });
   }
 
-  const storedNonce = getNonce(normalized);
-  if (!storedNonce) {
-    return res.status(401).json({ error: "Nonce expired or not found" });
+  let siweMessage;
+  try {
+    siweMessage = new SiweMessage(message);
+  } catch {
+    return res.status(400).json({ error: "Invalid SIWE message" });
+  }
+
+  const messageNonce = siweMessage.nonce;
+  if (!messageNonce || getNonce(normalized) !== messageNonce) {
+    console.warn("[POST /api/auth/verify] 401: nonce missing or stale");
+    return res.status(401).json({
+      error: "Nonce expired or not found. Connect again and approve a fresh sign prompt.",
+      code: "NONCE_INVALID",
+    });
   }
 
   try {
-    const siweMessage = new SiweMessage(message);
     const { success, error, data } = await siweMessage.verify({
       signature,
-      nonce: storedNonce,
+      domain: siweMessage.domain,
+      nonce: messageNonce,
     });
 
     if (!success || error) {
+      console.warn("[POST /api/auth/verify] 401: SIWE verify failed", error?.type);
       return res.status(401).json({
         error: error?.type || "Invalid SIWE signature",
         details: error?.expected,
+        code: "SIWE_VERIFY_FAILED",
       });
     }
 
     if (normalizeAddress(data.address) !== normalized) {
-      return res.status(401).json({ error: "Signature address mismatch" });
+      return res.status(401).json({
+        error: "Signature address mismatch",
+        code: "ADDRESS_MISMATCH",
+      });
     }
 
     if (Number(data.chainId) !== BASE_SEPOLIA_CHAIN_ID) {
       return res.status(401).json({
         error: `Wrong network. Expected chain ID ${BASE_SEPOLIA_CHAIN_ID} (Base Sepolia)`,
+        code: "WRONG_CHAIN",
       });
     }
 
-    deleteNonce(normalized);
+    if (!consumeNonce(normalized, messageNonce)) {
+      console.warn("[POST /api/auth/verify] 401: nonce race (already used)");
+      return res.status(401).json({
+        error: "Nonce already used. Connect again and sign a new message.",
+        code: "NONCE_USED",
+      });
+    }
 
     const user = await upsertUser(normalized);
     const token = issueToken(normalized, user.id);
@@ -155,7 +176,15 @@ router.post("/verify", async (req, res) => {
   } catch (err) {
     if (err.code === "DB_NOT_CONFIGURED" || err.code === "DB_UPSERT_FAILED") {
       console.error("[POST /api/auth/verify] database error:", err.details || err);
-      return res.status(503).json({ error: "Failed to save user profile" });
+      const hint =
+        err.details?.code === "PGRST205"
+          ? 'Run backend/supabase/migrations/001_users_siwe.sql in the Supabase SQL Editor.'
+          : undefined;
+      return res.status(503).json({
+        error: "Failed to save user profile. Ensure the Supabase users table exists.",
+        code: err.code,
+        hint,
+      });
     }
     if (err.code === "JWT_NOT_CONFIGURED") {
       return res.status(500).json({ error: err.message });

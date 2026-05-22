@@ -82,7 +82,8 @@ export function formatAuthError(err) {
   }
 
   if (status === 503 || code === "DB_NOT_CONFIGURED" || code === "DB_UPSERT_FAILED") {
-    return `Backend unavailable. ${err.body?.error || message}`;
+    const hint = err.body?.hint ? ` ${err.body.hint}` : "";
+    return `Backend unavailable. ${err.body?.error || message}${hint}`;
   }
 
   if (status >= 500) {

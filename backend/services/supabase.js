@@ -24,7 +24,7 @@ async function testDbConnection() {
   }
 
   const supabase = getSupabase();
-  const table = process.env.SUPABASE_TEST_TABLE || "health_checks";
+  const table = process.env.SUPABASE_TEST_TABLE || process.env.SUPABASE_USERS_TABLE || "users";
 
   const { data, error, count } = await supabase
     .from(table)

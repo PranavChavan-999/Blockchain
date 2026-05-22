@@ -16,14 +16,17 @@ import {
   SKILLS,
 } from "../config/constants";
 import Confetti from "../components/Confetti";
-import Header from "../components/Header";
+import Navbar from "../components/Navbar";
+import HeroSection from "../components/HeroSection";
+import StatsBar from "../components/StatsBar";
+import BenefitCards from "../components/BenefitCards";
+import FooterTags from "../components/FooterTags";
 import Stepper from "../components/Stepper";
 import SkillGrid from "../components/SkillGrid";
 import BadgeCard from "../components/BadgeCard";
 import TransactionReceipt from "../components/TransactionReceipt";
 import Inventory from "../components/Inventory";
 import History from "../components/History";
-import WhyGasless from "../components/WhyGasless";
 import ConnectScreen from "../components/ConnectScreen";
 import FaucetGuide from "../components/FaucetGuide";
 
@@ -142,14 +145,15 @@ export default function HomePage() {
   // ── Generate floating particles once ─────────────────────────
   useEffect(() => {
     setParticles(
-      Array.from({ length: 20 }, (_, i) => ({
+      Array.from({ length: 10 }, (_, i) => ({
         id:      i,
         x:       Math.random() * 100,
         y:       Math.random() * 100,
-        size:    Math.random() * 6 + 2,
-        dur:     Math.random() * 12 + 8,
-        delay:   Math.random() * 6,
-        opacity: Math.random() * 0.18 + 0.03,
+        size:    Math.random() * 2.5 + 1.5,
+        dur:     Math.random() * 16 + 24,
+        delay:   Math.random() * 8,
+        opacity: Math.random() * 0.08 + 0.04,
+        tone:    i % 2 === 0 ? "cyan" : "purple",
       }))
     );
   }, []);
@@ -589,24 +593,37 @@ export default function HomePage() {
     <>
       <Confetti active={showConfetti} />
 
-      <div className="page">
-        <div className="bg-grid" />
-        <div className="bg-orb" style={{ width:500,height:500,top:-220,left:-220, background:"radial-gradient(circle,rgba(99,102,241,.09) 0%,transparent 70%)" }} />
-        <div className="bg-orb" style={{ width:400,height:400,bottom:-160,right:-160, background:"radial-gradient(circle,rgba(167,139,250,.07) 0%,transparent 70%)" }} />
-        <div className="bg-orb" style={{ width:280,height:280,top:"42%",right:-90, background:"radial-gradient(circle,rgba(245,158,11,.04) 0%,transparent 70%)" }} />
+      <div className="page page-wrapper">
+        <div className="bg-grid" aria-hidden="true" />
+        <div className="bg-orb" style={{ width:500,height:500,top:-220,left:-220, background:"radial-gradient(circle,rgba(14,165,233,.09) 0%,transparent 70%)" }} aria-hidden="true" />
+        <div className="bg-orb" style={{ width:400,height:400,bottom:-160,right:-160, background:"radial-gradient(circle,rgba(14,165,233,.06) 0%,transparent 70%)" }} aria-hidden="true" />
         {particles.map((p) => (
-          <div key={p.id} className="particle" style={{
-            left:`${p.x}%`, top:`${p.y}%`, width:p.size, height:p.size,
-            background:`rgba(99,102,241,${p.opacity})`,
-            "--dur":`${p.dur}s`, "--delay":`${p.delay}s`, "--op":p.opacity,
-          }} />
+          <div
+            key={p.id}
+            className={`particle particle--${p.tone}`}
+            style={{
+              left: `${p.x}%`,
+              top: `${p.y}%`,
+              width: p.size,
+              height: p.size,
+              "--dur": `${p.dur}s`,
+              "--delay": `${p.delay}s`,
+              "--op": p.opacity,
+            }}
+            aria-hidden="true"
+          />
         ))}
 
-        <div className="content">
-          <Header />
-          <Stepper step={step} />
+        <Navbar />
 
-          <div className="card">
+        <div className="site-shell">
+          <HeroSection />
+          <StatsBar />
+
+          <div className="content content-main claim-section" id="claim">
+            <Stepper step={step} />
+
+            <div className="card card-main">
             {!isLoggedIn ? (
               <ConnectScreen
                 status={status}
@@ -736,12 +753,7 @@ export default function HomePage() {
                         🔄 Claim Another Badge ({badgesRemaining} remaining)
                       </button>
                     ) : (
-                      <div style={{
-                        marginTop:"12px", textAlign:"center", fontSize:"12px",
-                        color:"#4ade80", fontWeight:"700", padding:"10px",
-                        background:"rgba(74,222,128,.06)", borderRadius:"12px",
-                        border:"1px solid rgba(74,222,128,.14)"
-                      }}>
+                      <div className="all-badges-banner">
                         🏆 You've collected all 6 skill badges!
                       </div>
                     )}
@@ -750,23 +762,13 @@ export default function HomePage() {
 
                 <Inventory inventory={inventory} onChainClaimed={onChainClaimed} />
                 <History   txHistory={txHistory} />
-                <WhyGasless />
               </>
             )}
-          </div>
-
-          <div className="ugf-brand">
-            <span className="ugf-dot">◆</span>
-            Built on <strong>Base Sepolia</strong> · Gasless via <strong>UGF</strong> · No ETH required
-          </div>
-
-          <div className="footer">
-            <div>SkillBadge — Onchain credentials for the next generation of builders</div>
-            <div className="powered">
-              <span className="powered-dot">◆</span>
-              Powered by UGF Gas Abstraction
             </div>
           </div>
+
+          <BenefitCards />
+          <FooterTags />
         </div>
       </div>
     </>
