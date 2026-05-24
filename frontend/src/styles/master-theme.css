@@ -667,11 +667,14 @@
 /* Connected wallet panel — vault-aligned */
 .connect-wallet-panel {
   margin-top: 4px;
-  padding: 14px 16px;
+  padding: 18px 16px 16px;
   background: var(--bg-nav);
   border: 1px solid var(--border);
   border-radius: 12px;
   text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .connect-wallet-panel-head {
@@ -729,30 +732,42 @@
   width: 100%;
 }
 
-.connect-wallet-btn-wrap > div {
-  display: flex;
-  justify-content: center;
-  width: 100%;
+.connect-wallet-btn-wrap > div,
+.connect-wallet-btn-wrap [data-ck-wallet-button] {
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  background: transparent !important;
+  box-shadow: none !important;
 }
 
-/* Disconnected — full-width primary CTA */
-.connect-wallet-btn-wrap.is-disconnected > div {
-  width: 100%;
+/* Disconnected — centered primary CTA (not full-width bar) */
+.connect-wallet-btn-wrap.is-disconnected > div,
+.connect-wallet-btn-wrap.is-disconnected [data-ck-wallet-button] {
+  width: auto !important;
+  max-width: 100% !important;
 }
 
 .connect-wallet-btn-wrap.is-disconnected :is(button, a) {
-  width: 100% !important;
-  max-width: 100% !important;
+  width: auto !important;
+  min-width: 220px;
+  max-width: min(100%, 320px) !important;
+  margin: 0 auto !important;
+  display: inline-flex !important;
+  justify-content: center !important;
+  align-items: center !important;
   background: var(--accent) !important;
   color: var(--bg-page) !important;
   border: none !important;
   border-radius: 10px !important;
-  padding: 13px 20px !important;
+  padding: 13px 28px !important;
   font-size: 14px !important;
   font-weight: 700 !important;
   letter-spacing: 0.03em !important;
   transition: background 0.2s ease, transform 0.1s ease !important;
-  box-shadow: none !important;
+  box-shadow: 0 0 24px rgba(14, 165, 233, 0.25) !important;
 }
 
 .connect-wallet-btn-wrap.is-disconnected :is(button, a):hover {
